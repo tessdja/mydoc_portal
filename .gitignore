@@ -2,3 +2,6 @@ venv/
 .env
 mydoc_portal.egg-info
 _pycache_/
+logs/
+*.pyc
+test.py
