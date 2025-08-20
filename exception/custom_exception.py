@@ -13,7 +13,7 @@ class DocumentPortalException(Exception):
         self.traceback_str = ''.join(traceback.format_exception(*error_details.exc_info())) 
         
     def __str__(self):
-        return f"""
+       return f"""
         Error in [{self.file_name}] at line [{self.lineno}]
         Message: {self.error_message}
         Traceback:
