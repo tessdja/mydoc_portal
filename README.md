@@ -18,6 +18,19 @@ conda create -p <env_name> python=3.10 -y
 # Activate the environment (use full path to the environment)
 conda activate <path_of_the_env>
 
+# Create mydoc_portal as custom package (setup.py)
+pip install -e.
+
+# Validate mydoc_portal was created as a package
+pip list
+# should show similar results below
+# Package       Version     Project Location
+# mydoc_portal  0.1
+# pip           25.1
+# setuptools    78.1.1
+# wheel         0.45.1
+
+
 # Install dependencies from requirements.txt
 pip install -r requirements.txt
 
