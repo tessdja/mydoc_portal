@@ -5,8 +5,5 @@ _pycache_/
 logs/
 *.pyc
 faiss_index/
-test.py
-test_analyze.py
-test_compare.py
-test_single_doc.py
 data/
+archive
