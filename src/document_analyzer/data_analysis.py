@@ -1,7 +1,7 @@
 import os
 import sys
 from utils.model_loader import ModelLoader
-from logger import GLOBAL_LOGGER as log
+from logger.custom_logger import CustomLogger
 from exception.custom_exception import DocumentPortalException
 from model.models import *
 from langchain_core.output_parsers import JsonOutputParser
@@ -14,6 +14,7 @@ class DocumentAnalyzer:
     Automatically logs all actions and supports session-based organization.
     """
     def __init__(self):
+        self.log = CustomLogger().get_logger(__name__)
         try:
             self.loader=ModelLoader()
             self.llm=self.loader.load_llm()
@@ -24,11 +25,11 @@ class DocumentAnalyzer:
             
             self.prompt = PROMPT_REGISTRY["document_analysis"]
             
-            log.info("DocumentAnalyzer initialized successfully")
+            self.log.info("DocumentAnalyzer initialized successfully")
             
             
         except Exception as e:
-            log.error(f"Error initializing DocumentAnalyzer: {e}")
+            self.log.error(f"Error initializing DocumentAnalyzer: {e}")
             raise DocumentPortalException("Error in DocumentAnalyzer initialization", sys)
         
         
@@ -40,19 +41,19 @@ class DocumentAnalyzer:
         try:
             chain = self.prompt | self.llm | self.fixing_parser
             
-            log.info("Meta-data analysis chain initialized")
+            self.log.info("Meta-data analysis chain initialized")
 
             response = chain.invoke({
                 "format_instructions": self.parser.get_format_instructions(),
                 "document_text": document_text
             })
 
-            log.info("Metadata extraction successful", keys=list(response.keys()))
+            self.log.info("Metadata extraction successful", keys=list(response.keys()))
             
             return response
 
         except Exception as e:
-            log.error("Metadata analysis failed", error=str(e))
+            self.log.error("Metadata analysis failed", error=str(e))
             raise DocumentPortalException("Metadata extraction failed",sys)
         
     
