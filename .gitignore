@@ -5,5 +5,6 @@ _pycache_/
 logs/
 *.pyc
 faiss_index/
+main_archive/
 data/
 archive
