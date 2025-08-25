@@ -7,11 +7,11 @@ on:
     branches: [main]
 
 env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: documentportal
+  AWS_REGION: ap-southeast-2
+  ECR_REPOSITORY: documentportalliveclass
   ECS_SERVICE: document-portal-service
   ECS_CLUSTER: document-portal-cluster
-  ECS_TASK_DEFINITION: .github/workflows/task-definition.json
+  ECS_TASK_DEFINITION: .github/workflows/task_definition.json
   CONTAINER_NAME: document-portal-container
 
 permissions:
@@ -25,20 +25,22 @@ jobs:
   build-and-push:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and Push Docker Image
         id: build-image
@@ -66,7 +68,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
@@ -84,7 +86,7 @@ jobs:
           task-definition: ${{ steps.render-task.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
+          wait-for-service-stability: false
 
       - name: Done!
-        run: echo "✅ Deployed to ECS Fargate Successfully"
+        run: echo "Deployed to ECS Fargate Successfully"
