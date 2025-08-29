@@ -39,16 +39,42 @@ def _pptx_to_documents(p: Path) -> List[Document]:
     content = "\n\n".join(parts) if parts else ""
     return [Document(page_content=content, metadata={"source": str(p), "type": "pptx"})]
 
-def _csv_to_documents(p: Path) -> List[Document]:
+def _csv_to_documents(p: Path, *, max_preview_rows: int = 50) -> List[Document]:
     """
-    Read CSV and return a single Document with CSV text.
+    Convert a CSV into one compact langchain Document:
+    - summary header (shape + columns)
+    - first N rows as CSV text (defaults to 50)
     """
     try:
-        df = pd.read_csv(p)
-        text = df.to_csv(index=False)
-        return [Document(page_content=text, metadata={"source": str(p), "type": "csv", "rows": int(len(df))})]
+        # Read as strings to avoid type surprises; disable mixed warnings
+        df = pd.read_csv(p, dtype=str, low_memory=False)
+        
+        n_rows, n_cols = df.shape
+        preview_rows = min(max_preview_rows, n_rows)
+        preview_csv = df.head(preview_rows).to_csv(index=False)
+
+        # if you want both ends of the file
+        # tail_rows = min(20, n_rows - preview_rows) if n_rows > preview_rows else 0
+        # if tail_rows:
+        #     text += f"\nPREVIEW (last {tail_rows} rows):\n" + df.tail(tail_rows).to_csv(index=False)
+
+        header = (
+            f"CSV_FILE: {p.name}\n"
+            f"SHAPE: {n_rows} rows x {n_cols} columns\n"
+            f"COLUMNS: {','.join(map(str, df.columns))}\n"
+            f"PREVIEW (first {preview_rows} rows):\n"
+        )
+        text = header + preview_csv
+
+        return [
+            Document(
+                page_content=text,
+                metadata={"source": str(p), "type": "csv", "rows":int(n_rows), "cols": int(n_cols)},
+            )
+        ]
     except Exception as e:
         raise DocumentPortalException(f"Error reading CSV: {p.name}", e) from e
+
     
 def _xlsx_to_documents(p: Path) -> List[Document]:
     """
@@ -103,6 +129,8 @@ def load_documents(paths: Iterable[Path]) -> List[Document]:
                 docs.extend(_pptx_to_documents(p))
             elif ext == ".xlsx":
                 docs.extend(_xlsx_to_documents(p))
+            elif ext == ".csv":
+                docs.extend(_csv_to_documents(p))
             elif ext == ".md":
                 docs.extend(_md_to_documents(p))
             else:

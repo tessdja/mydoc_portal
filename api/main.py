@@ -60,6 +60,11 @@ async def analyze_document(file: UploadFile = File(...)) -> Any:
         saved_path = dh.save_any(FastAPIFileAdapter(file))
         text = dh.read_any(saved_path) 
 
+        if not text or not text.strip():
+            # Surface a clear error instead of letting the JSON parser explode
+            raise HTTPException(status_code=400, detail="No text extracted from the file. If this is a CSV," \
+            "ensure the loader creates a text preview")
+
         analyzer = DocumentAnalyzer()
         result = analyzer.analyze_document(text)
         log.info("Document analysis complete.")
