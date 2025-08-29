@@ -4,12 +4,12 @@ import uuid
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
-import uuid
 from typing import Iterable, List
 from logger import GLOBAL_LOGGER as log
 from exception.custom_exception import DocumentPortalException
 
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".pptx", ".xlsx", ".csv", ".md"}
+
 
 # ----------------------------- #
 # Helpers (file I/O + loading)  #
@@ -32,7 +32,7 @@ def save_uploaded_files(uploaded_files: Iterable, target_dir: Path) -> List[Path
             # Clean file name (only alphanum, dash, underscore)
             safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', Path(name).stem).lower()
             fname = f"{safe_name}_{uuid.uuid4().hex[:6]}{ext}"
-            fname = f"{uuid.uuid4().hex[:8]}{ext}"
+            # fname = f"{uuid.uuid4().hex[:8]}{ext}"
             out = target_dir / fname
             with open(out, "wb") as f:
                 if hasattr(uf, "read"):

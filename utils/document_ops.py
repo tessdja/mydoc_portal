@@ -6,7 +6,82 @@ from langchain.schema import Document
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from logger import GLOBAL_LOGGER as log
 from exception.custom_exception import DocumentPortalException
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+
+from pptx import Presentation
+import pandas as pd
+import re
+
+# ingestion gate
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".pptx", ".xlsx", ".csv", ".md"}
+
+def _pptx_to_documents(p: Path) -> List[Document]:
+    """
+    Extract text (incl. tables) from .pptx using python-pptx.
+    """
+    prs = Presentation(str(p))
+    parts = []
+    for i, slide in enumerate(prs.slides, start=1):
+        bits =[]
+        for shape in slide.shapes:
+            # Text in shapes/placeholders
+            if hasattr(shape, "text") and shape.text:
+                bits.append(shape.text)
+            # Table text
+            if getattr(shape, "has_table", False):
+                rows = []
+                for r in shape.table.rows:
+                    rows.append("|".join(c.text for c in r.cells))
+                if rows:
+                    bits.append("\n".join(rows))
+
+        if bits:
+            parts.append(f"---Slide {i} ---\n" + "\n".join(bits))
+    content = "\n\n".join(parts) if parts else ""
+    return [Document(page_content=content, metadata={"source": str(p), "type": "pptx"})]
+
+def _csv_to_documents(p: Path) -> List[Document]:
+    """
+    Read CSV and return a single Document with CSV text.
+    """
+    try:
+        df = pd.read_csv(p)
+        text = df.to_csv(index=False)
+        return [Document(page_content=text, metadata={"source": str(p), "type": "csv", "rows": int(len(df))})]
+    except Exception as e:
+        raise DocumentPortalException(f"Error reading CSV: {p.name}", e) from e
+    
+def _xlsx_to_documents(p: Path) -> List[Document]:
+    """
+    Read each Excel sheet as one Document (sheet-level granularity).
+    """
+    try:
+        xls = pd.ExcelFile(p)
+        docs: List[Document] = []
+        for sheet in xls.sheet_names:
+            df = xls.parse(sheet)
+            text = df.to_csv(index=False)
+            docs.append(
+                Document(
+                    page_content=text,
+                    metadata = {"source": str(p), "type": "xlsx", "sheet":sheet, "rows": int(len(df))}
+                )
+            )
+        return docs
+    except Exception as e:
+        raise DocumentPortalException(f"Error reading Excel: {p.name}", e) from e
+    
+def _md_to_documents(p: Path) -> List[Document]:
+    """
+    Read Markdown as plain text (preserve headings/code fences).
+    """
+    try:
+        text = p.read_text(encoding="utf-8", errors="ignore")
+        # Strip YAML front-matter if present (--- ...--- at top)
+        if text.lstrip().startswith("---"):
+            text = re.sub(r"^---[\s\S]*?---\s*", "", text, count=1, flags=re.MULTILINE)
+        return [Document(page_content=text, metadata={"source": str(p), "type": "md"})]
+    except Exception as e:
+        raise DocumentPortalException(f"Error reading Markdown: {p.name}", e) from e
 
 
 def load_documents(paths: Iterable[Path]) -> List[Document]:
@@ -17,14 +92,23 @@ def load_documents(paths: Iterable[Path]) -> List[Document]:
             ext = p.suffix.lower()
             if ext == ".pdf":
                 loader = PyPDFLoader(str(p))
+                docs.extend(loader.load())
             elif ext == ".docx":
                 loader = Docx2txtLoader(str(p))
+                docs.extend(loader.load())
             elif ext == ".txt":
                 loader = TextLoader(str(p), encoding="utf-8")
+                docs.extend(loader.load())
+            elif ext == ".pptx":
+                docs.extend(_pptx_to_documents(p))
+            elif ext == ".xlsx":
+                docs.extend(_xlsx_to_documents(p))
+            elif ext == ".md":
+                docs.extend(_md_to_documents(p))
             else:
                 log.warning("Unsupported extension skipped", path=str(p))
                 continue
-            docs.extend(loader.load())
+            
         log.info("Documents loaded", count=len(docs))
         return docs
     except Exception as e:

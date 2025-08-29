@@ -18,6 +18,7 @@ from utils.file_io import generate_session_id, save_uploaded_files
 from utils.document_ops import load_documents, concat_for_analysis, concat_for_comparison
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+ALLOWED_ANALYZE_EXTS = {".pdf", ".docx", ".txt", ".pptx", ".md", ".csv", ".xlsx"}
 
 # FAISS Manager (load-or-create)
 class FaissManager:
@@ -175,6 +176,7 @@ class ChatIngestor:
 class DocHandler:
     """
     PDF save + read (page-wise) for analysis.
+    Also PPTX, .xlsx, .csv and .md files save + read (page-wise) for analysis
     """
     def __init__(self, data_dir: Optional[str] = None, session_id: Optional[str] = None):
         self.data_dir = data_dir or os.getenv("DATA_STORAGE_PATH", os.path.join(os.getcwd(), "data", "document_analysis"))
@@ -213,6 +215,36 @@ class DocHandler:
         except Exception as e:
             log.error("Failed to read PDF", error=str(e), pdf_path=pdf_path, session_id=self.session_id)
             raise DocumentPortalException(f"Could not process PDF: {pdf_path}", e) from e
+        
+    def save_any(self, uploaded_file) -> str:
+        try:
+            filename = os.path.basename(uploaded_file.name)
+            ext = Path(filename).suffix.lower()
+            if ext not in ALLOWED_ANALYZE_EXTS:
+                raise ValueError(f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_ANALYZE_EXTS))}")
+            save_path = os.path.join(self.session_path, filename)
+            with open(save_path, "wb") as f:
+                if hasattr(uploaded_file, "read"):
+                    f.write(uploaded_file.read())
+                else:
+                    f.write(uploaded_file.getbuffer())
+            log.info("File saved successfully", 
+                     file=filename, save_path=save_path, session_id=self.session_id)
+            return save_path
+        except Exception as e:
+            log.error("Failed to save file", error=str(e), session_id=self.session_id)
+            raise DocumentPortalException(f"Failed to save file: {str(e)}", e) from e
+        
+    def read_any(self, path: str) -> str:
+        ext = Path(path).suffix.lower()
+        if ext == ".pdf":
+            return self.read_pdf(path)
+        # Defer to multi-format loaders
+        docs = load_documents([Path(path)])
+        return concat_for_analysis(docs)
+
+
+
 class DocumentComparator:
     """
     Save, read & combine PDFs for comparison with session-based versioning.
