@@ -1,9 +1,45 @@
+# Python cache & virtualenv
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.pyo
+env/
 venv/
-.env
-mydoc_portal.egg-info
-_pycache_/
-logs/
-*.pyc
+*.egg-info/
+*.egg
+*.log
+
+# OS & editor files
+.DS_Store
+.vscode/
+.idea/
+
+# LangChain-related
 faiss_index/
+*.faiss
+*.pkl
+
+# Notebooks & experiments
+*.ipynb
+.ipynb_checkpoints/
+
+# Data & archive
 data/
-archive
+archive/
+main_archive/
+*.pdf
+
+# Secrets & configs
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+
+# Build/Dist
+dist/
+build/
+document_portal.egg-info/
+

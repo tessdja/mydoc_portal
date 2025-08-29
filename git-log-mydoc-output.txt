@@ -1,0 +1,206 @@
+* b8e9903 2025-08-23 tessdja removed credential who am I code.| 
+|  .github/workflows/aws.yml | 3 ---
+|  1 file changed, 3 deletions(-)
+
+* 0aff502 2025-08-23 tessdja checking aws credentials| 
+|  .github/workflows/aws.yml | 3 +++
+|  1 file changed, 3 insertions(+)
+
+* 67aa5cf 2025-08-23 tessdja fixed task_definition.json| 
+|  .github/workflows/aws.yml | 2 +-
+|  1 file changed, 1 insertion(+), 1 deletion(-)
+
+* 01d0cd9 2025-08-22 tessdja added config files for deployment| 
+|  .github/workflows/aws.yml              |  77 ++++++++++++++
+|  .github/workflows/task_definition.json |  60 +++++++++++
+|  .github/workflows/template.yml         | 171 +++++++++++++++++++++++++++++++
+|  Dockerfile                             |   2 +
+|  4 files changed, 310 insertions(+)
+
+* f467c99 2025-08-22 tessdja Dockerfile and .dockerignore added.| 
+|  .dockerignore                               |  11 ++
+|  .gitignore                                  |   1 +
+|  Dockerfile                                  |  30 +++++
+|  api/main.py                                 |  43 ++++----
+|  exception/custom_exception.py               |  23 ++--
+|  logger/__init__.py                          |   2 +-
+|  main_archive.py                             | 153 ++++++++++++++++++++++++++
+|  requirements.txt                            |   1 +
+|  setup.py                                    |  28 ++++-
+|  src/document_analyzer/data_analysis.py      |  13 +--
+|  src/document_chat/retrieval.py              |  25 ++---
+|  src/document_compare/document_comparator.py |  13 +--
+|  src/document_ingestion/data_ingestion.py    |  72 ++++++------
+|  utils/document_ops.py                       |  42 +++----
+|  utils/file_io.py                            |   4 +-
+|  utils/model_loader.py                       |   7 +-
+|  versions.py                                 |   4 +-
+|  17 files changed, 342 insertions(+), 130 deletions(-)
+
+* 53f5201 2025-08-22 tessdja FASTAPI is working and multiple logging fixed.| 
+|  .github/aws.yml                             |   0
+|  .github/task_definition.json                |   0
+|  .github/template.yml                        |   0
+|  api/main.py                                 |  43 ++---
+|  logger/__init__.py                          |   2 +-
+|  logger/custom_logger.py                     |  67 ++++++--
+|  logger/custom_loggerX.py                    |  53 ++++++
+|  src/document_analyzer/data_analysis.py      |  13 +-
+|  src/document_chat/retrieval.py              |  25 +--
+|  src/document_compare/document_comparator.py |  13 +-
+|  src/document_ingestion/data_ingestion.py    |  73 ++++-----
+|  templates/index.html                        | 224 ++++++++++++++++----------
+|  utils/document_ops.py                       |  42 +++--
+|  utils/file_io.py                            |   4 +-
+|  utils/model_loader.py                       |   6 +-
+|  15 files changed, 357 insertions(+), 208 deletions(-)
+
+* 49de92d 2025-08-22 tessdja one data ingestion script for FASTAPI - Part 1 implementation.| 
+|  src/document_chat/.gitkeep => .github/aws.yml     |      0
+|  .../__init__.py => .github/task_definition.json   |      0
+|  .../template.yml                                  |      0
+|  .vscode/settings.json                             |      3 +
+|  api/main.py                                       |    160 +
+|  logger/__init__.py                                |      4 +
+|  logger/custom_logger.py                           |     10 +-
+|  notebook/experiments.ipynb                        | 386100 +----------------
+|  requirements.txt                                  |     21 +-
+|  src/document_analyzer/data_analysis.py            |     19 +-
+|  src/document_analyzer/data_ingestion.py           |     97 -
+|  src/document_chat/retrieval.py                    |    172 +
+|  src/document_compare/data_ingestion.py            |    107 -
+|  src/document_compare/document_comparator.py       |     13 +-
+|  .../__init__.py                                   |      0
+|  src/document_ingestion/data_ingestion.py          |    286 +
+|  src/multi_document_chat/data_ingestion.py         |    104 -
+|  src/multi_document_chat/evaluation.py             |      0
+|  src/multi_document_chat/mmr.py                    |      0
+|  src/multi_document_chat/retrieval.py              |    128 -
+|  src/single_document_chat/.gitkeep                 |      0
+|  src/single_document_chat/.gitkeep copy            |      0
+|  src/single_document_chat/data_ingestion.py        |     67 -
+|  src/single_document_chat/retrieval.py             |    105 -
+|  static/style.css                                  |    217 +
+|  templates/index.html                              |    253 +
+|  utils/config_loader.py                            |     38 +-
+|  utils/document_ops.py                             |     61 +
+|  utils/file_io.py                                  |     47 +
+|  utils/model_loader.py                             |      8 +-
+|  30 files changed, 1368 insertions(+), 386652 deletions(-)
+
+* 277d8a7 2025-08-20 tessdja multi document chat is working!| 
+|  .gitignore                                       |   7 +-
+|  api/main.py                                      |   0
+|  exception/custom_exception.py                    |  76 ++++++--
+|  exception/custom_exception_archive.py            |  29 +++
+|  requirements.txt                                 |  33 ++--
+|  src/multi_document_chat/__init__.py              |   0
+|  src/multi_document_chat/contextualcompression.py |   0
+|  src/multi_document_chat/data_ingestion.py        | 104 +++++++++++
+|  src/multi_document_chat/evaluation.py            |   0
+|  src/multi_document_chat/mmr.py                   |   0
+|  src/multi_document_chat/retrieval.py             | 128 +++++++++++++
+|  test.py                                          | 207 +++++++++++++++++++++
+|  test_compare.py                                  |  95 ++++++++++
+|  test_single_doc.py                               | 149 +++++++++++++++
+|  versions.py                                      |  26 +++
+|  15 files changed, 815 insertions(+), 39 deletions(-)
+
+* 766a24a 2025-08-20 tessdja single document chat updated| 
+|  .gitignore                                 |   2 +
+|  requirements.txt                           |   4 +
+|  src/single_document_chat/data_ingestion.py |  67 +++++++++++++++++
+|  src/single_document_chat/retrieval.py      | 105 +++++++++++++++++++++++++++
+|  test_analyze.py                            |  48 ------------
+|  5 files changed, 178 insertions(+), 48 deletions(-)
+
+* fdbcffe 2025-08-20 tessdja single document chat is working| 
+|  .gitignore | 2 ++
+|  1 file changed, 2 insertions(+)
+
+* d18fbbd 2025-08-20 tessdja docuemnt compare is working| 
+|  exception/custom_exception.py               |  38 +++++----
+|  model/models.py                             |  26 +++++--
+|  notebook/experiments.ipynb                  |  33 +++++++-
+|  prompt/prompt_library.py                    |  56 +++++++++++++-
+|  requirements.txt                            |   1 +
+|  src/document_analyzer/.gitkeep              |   0
+|  src/document_compare/.gitkeep               |   0
+|  src/document_compare/data_ingestion.py      | 107 ++++++++++++++++++++++++++
+|  src/document_compare/document_comparator.py |  45 +++++++++++
+|  test_analyze.py                             |  48 ++++++++++++
+|  utils/model_loader.py                       |   5 +-
+|  11 files changed, 324 insertions(+), 35 deletions(-)
+
+* 246166a 2025-08-20 tessdja document analysis tested using test.py| 
+|  exception/custom_exception.py | 2 +-
+|  utils/model_loader.py         | 3 ++-
+|  2 files changed, 3 insertions(+), 2 deletions(-)
+
+* 3c4ac3d 2025-08-20 tessdja document analyzer data_analysis and data_ingestion scripts updated| 
+|  .gitignore                              |  3 +-
+|  config/config.yaml                      |  2 +-
+|  model/models.py                         | 15 +++++
+|  prompt/prompt_library.py                | 12 ++++
+|  src/document_analyzer/data_analysis.py  | 59 +++++++++++++++++++
+|  src/document_analyzer/data_ingestion.py | 97 +++++++++++++++++++++++++++++++
+|  utils/config_loader.py                  |  6 +-
+|  utils/model_loader.py                   |  1 +
+|  8 files changed, 192 insertions(+), 3 deletions(-)
+
+* d3b0237 2025-08-20 tessdja model_loader.py, config_loader.py and config.yaml updated| 
+|  config/config.yaml     |  23 +++++++++
+|  utils/config_loader.py |   7 +++
+|  utils/model_loader.py  | 121 +++++++++++++++++++++++++++++++++++++++++++++++
+|  3 files changed, 151 insertions(+)
+
+* 6d924d6 2025-08-20 tessdja exception_experiment.ipynb and looging_experiment.ipynb updated| 
+|  .gitignore                          |   5 +-
+|  exception/custom_exception.py       |  31 ++++
+|  logger/custom_logger.py             |  53 ++++++
+|  notebook/exception_experiment.ipynb | 298 ++++++++++++++++++++++++++++++++++
+|  notebook/logging_experiment.ipynb   | 252 ++++++++++++++++++++++++++++
+|  requirements.txt                    |   2 +
+|  6 files changed, 640 insertions(+), 1 deletion(-)
+
+* ed6ed66 2025-08-20 tessdja experiments.ipynb updated with langchain and Basic RAG commands| 
+|  notebook/data/sample.pdf   |    Bin 0 -> 13661300 bytes
+|  notebook/experiments.ipynb | 385646 ++++++++++++++++++++++++++++++++++++++++
+|  requirements.txt           |      3 +
+|  3 files changed, 385649 insertions(+)
+
+* 30d0b73 2025-08-20 tessdja Project setup and structure created. experiments.ipynb created for langchain practice| 
+|  .gitignore                             |   4 +-
+|  README.md                              |  13 +
+|  config/config.yaml                     |   0
+|  exception/__init__.py                  |   0
+|  exception/custom_exception.py          |   0
+|  logger/__init__.py                     |   0
+|  logger/custom_logger.py                |   0
+|  notebook/experiments.ipynb             | 923 +++++++++++++++++++++++++++++++
+|  prompt/__init__.py                     |   0
+|  prompt/prompt_library.py               |   0
+|  requirements.txt                       |   6 +
+|  setup.py                               |   8 +
+|  src/__init__.py                        |   0
+|  src/document_analyzer/.gitkeep         |   0
+|  src/document_analyzer/__init__.py      |   0
+|  src/document_chat/.gitkeep             |   0
+|  src/document_chat/__init__.py          |   0
+|  src/document_compare/.gitkeep          |   0
+|  src/document_compare/__init__.py       |   0
+|  src/single_document_chat/.gitkeep      |   0
+|  src/single_document_chat/.gitkeep copy |   0
+|  src/single_document_chat/__init__.py   |   0
+|  static/style.css                       |   0
+|  streamlit_ui.py                        |   0
+|  templates/index.html                   |   0
+|  utils/__init__.py                      |   0
+|  utils/model_loader.py                  |   0
+|  27 files changed, 953 insertions(+), 1 deletion(-)
+
+* e2d5c41 2025-08-20 tessdja First Commit  
+   .gitignore       |  2 ++
+   README.md        | 69 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   requirements.txt |  0
+   3 files changed, 71 insertions(+)
