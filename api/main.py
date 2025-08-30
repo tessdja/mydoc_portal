@@ -1,4 +1,5 @@
 import os
+
 from typing import List, Optional, Any, Dict
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -6,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+from utils.document_ops import FastAPIFileAdapter
 
 from src.document_ingestion.data_ingestion import (
     DocHandler,
@@ -76,20 +78,70 @@ async def analyze_document(file: UploadFile = File(...)) -> Any:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
 
 # ---------- COMPARE ----------
+@staticmethod
+def _tabular_to_page_changes_rows(result: dict) -> list[dict[str, str]]:
+    """Format tabular diff into your current UI's 'Page'/'Changes' rows."""
+    rows = []
+
+    # Added / Removed rows summary
+    if result.get("added_rows"):
+        rows.append({"Page": "Added rows", "Changes": str(len(result["added_rows"]))})
+    if result.get("removed_rows"):
+        rows.append({"Page": "Removed rows", "Changes": str(len(result["removed_rows"]))})
+
+    # Per-column summaries (e.g., 'Private -> Self-employed (42); ...')
+    for col_block in result.get("summaries", []):
+        col = col_block.get("column", "")
+        changes = col_block.get("changes", [])
+        if changes:
+            summary_text = "; ".join(f"{c['change']} ({c['count']})" for c in changes)
+        else:
+            summary_text = "NO CHANGE"
+        rows.append({"Page": col, "Changes": summary_text})
+
+    # If everything was empty, emit a single NO CHANGE row
+    if not rows:
+        rows.append({"Page": "All", "Changes": "NO CHANGE"})
+    return rows
+
+
 @app.post("/compare")
 async def compare_documents(reference: UploadFile = File(...), actual: UploadFile = File(...)) -> Any:
     try:
         log.info(f"Comparing files: {reference.filename} vs {actual.filename}")
+
         dc = DocumentComparator()
         ref_path, act_path = dc.save_uploaded_files(
             FastAPIFileAdapter(reference), FastAPIFileAdapter(actual)
         )
-        _ = ref_path, act_path
-        combined_text = dc.combine_documents()
+
+        combined = dc.combine_pair(ref_path, act_path)
+
+        # ----------  Excel/CSV path: 'combined' is a dict  ----------
+        if isinstance(combined, dict):
+            # Keep existing UI working: provide 'rows' (Page/Changes) AND the full structured diff.
+            page_rows = _tabular_to_page_changes_rows(combined)
+            log.info("Tabular diff completed",
+                     key_columns=combined.get("key_columns"),
+                     cols=len(combined.get("columns_compared", [])),
+                     session_id=dc.session_id)
+            return {
+                "rows": page_rows,          # your current table will render this
+                "tabular": combined,        # full structured diff for richer UIs later
+                "session_id": dc.session_id
+            }
+
+        # ----------  Non-tabular path: 'combined' is text for the LLM  ----------
+        text = combined if isinstance(combined, str) else str(combined)
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="No text extracted from one or both files.")
+
         comp = DocumentComparatorLLM()
-        df = comp.compare_documents(combined_text)
-        log.info("Document comparison completed.")
+        df = comp.compare_documents(text)
+
+        log.info("Document comparison completed.", session_id=dc.session_id)
         return {"rows": df.to_dict(orient="records"), "session_id": dc.session_id}
+
     except HTTPException:
         raise
     except Exception as e:
