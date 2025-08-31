@@ -141,6 +141,25 @@ class ChatIngestor:
         log.info("Documents split", chunks=len(chunks), chunk_size=chunk_size, overlap=chunk_overlap)
         return chunks
     
+    def _prechunk(self, docs: List[Document]) -> List[Document]:
+        out = []
+        for d in docs:
+            src = (d.metadata or {}).get("source", "").lower()
+            text = d.page_content or ""
+            # Heuristic boundaries
+            if src.endswith(".pptx"):
+                parts = re.split(r"\n---\s*Slide\s+\d+\s*---\n", text)[1:] or [text]
+            elif src.endswith(".md"):
+                parts = re.split(r"(?=^#{1,3}\s)", text, flags=re.MULTILINE) or [text]
+            else:
+                parts = [text]
+
+            for p in parts:
+                if p.strip():
+                    out.append(Document(page_content=p.strip(), metadata=d.metadata))
+        return out
+
+
     def built_retriver( self,
         uploaded_files: Iterable,
         *,
@@ -153,6 +172,12 @@ class ChatIngestor:
             if not docs:
                 raise ValueError("No valid documents loaded")
             
+            # NEW: drop empty/near-empty docs
+            docs = [d for d in docs if d and d.page_content and d.page_content.strip()]
+            if not docs:
+                raise ValueError("Files contained no extractable text")
+            
+            docs = self._prechunk(docs)  # NEW: pre-chunk by slides/headings
             chunks = self._split(docs, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
             
             ## FAISS manager very very important class for the docchat
