@@ -51,10 +51,27 @@ context_qa_prompt = ChatPromptTemplate.from_messages([
     ("human", "{input}"),
 ])
 
+nl2sql_prompt = ChatPromptTemplate.from_messages([
+    ("system",
+     "You generate a single MySQL 8.0 SELECT statement, nothing else.\n"
+     "Rules:\n"
+     "- SELECT-only. One statement. No DDL/DML. Use fully-qualified names like `docportal.table`.\n"
+     "- Use only tables/columns listed below. Prefer stroke_patients_v2 for current data.\n"
+     "- If user asks for top/bottom, add ORDER BY and LIMIT.\n"
+     "- For diffs between versions, join v1 and v2 USING (id).\n\n"
+     "Schema:\n{schema_text}\n\n"
+     "Examples:\n{fewshot}\n"
+     "Return ONLY the SQL in ```sql fences."),
+    ("human", "Q: {question}\nA:")
+])
+
+
+
 # Central dictionary to register prompts
 PROMPT_REGISTRY = {
     "document_analysis": document_analysis_prompt,
     "document_comparison": document_comparison_prompt,
     "contextualize_question": contextualize_question_prompt,
     "context_qa": context_qa_prompt,
+    "nl2sql": nl2sql_prompt, 
 }

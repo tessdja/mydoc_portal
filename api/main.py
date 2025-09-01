@@ -1,7 +1,7 @@
 import os
 
 from typing import List, Optional, Any, Dict
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Body
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -20,6 +20,11 @@ from src.document_compare.document_comparator import DocumentComparatorLLM
 from src.document_chat.retrieval import ConversationalRAG
 from utils.document_ops import FastAPIFileAdapter,read_pdf_via_handler
 from logger import GLOBAL_LOGGER as log
+
+# -----------FOLLOWING IMPORTS SUPPORT NL TO SQL ROUTE---------
+from utils.schema_catalog import build_catalog, catalog_as_prompt_text
+from utils.nl_to_sql import generate_and_validate
+from utils.db import safe_select
 
 FAISS_BASE = os.getenv("FAISS_BASE", "faiss_index")
 UPLOAD_BASE = os.getenv("UPLOAD_BASE", "data")
@@ -225,6 +230,54 @@ async def db_query(payload: dict):
         return {"rows": rows}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+# ----- NL TO SQL with schema catalog and guardrails ------------
+@app.post("/db/nl")
+async def db_nl(payload: dict = Body(...)):
+    try:
+        question = (payload.get("question") or "").strip()
+        if not question:
+            raise HTTPException(status_code=400, detail="Missing 'question'")
+
+        schema = payload.get("schema", "docportal")
+        refresh = bool(payload.get("refresh", False))
+
+        # 1) catalog
+        cat = build_catalog(schema=schema, table_whitelist=None,
+                            ttl_seconds=0 if refresh else 3600)
+        cat_text = catalog_as_prompt_text(cat)
+
+        # 2) few-shots
+        examples = [
+            ("Count rows in v2", "SELECT COUNT(*) AS n FROM docportal.stroke_patients_v2"),
+            ("work_type counts for Rural",
+             "SELECT work_type, COUNT(*) AS cnt FROM docportal.stroke_patients_v2 "
+             "WHERE residence_type='Rural' GROUP BY work_type ORDER BY cnt DESC"),
+            ("Ids that changed work_type from Private to Self-employed between v1 and v2",
+             "SELECT v1.id FROM docportal.stroke_patients_v1 v1 "
+             "JOIN docportal.stroke_patients_v2 v2 USING (id) "
+             "WHERE v1.work_type='Private' AND v2.work_type='Self-employed'"),
+        ]
+
+        # 3) generate + validate
+        max_rows = int(os.getenv("MYSQL_MAX_ROWS", "1000"))
+        safe_sql = generate_and_validate(
+            question, schema_text=cat_text, examples=examples, max_rows=max_rows
+        )
+        log.info("NL2SQL", sql=safe_sql)
+
+        # 4) execute
+        rows = safe_select(safe_sql)
+        return {"sql": safe_sql, "rows": rows}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("db_nl failed")   # <-- now you’ll see the real error in the console
+        raise HTTPException(status_code=400, detail=f"db_nl failed: {type(e).__name__}: {e}")
+
+
+
 
 
 # command for executing the fast api
