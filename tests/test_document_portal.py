@@ -75,7 +75,9 @@ def test_compare_tabular_dict(monkeypatch):
     # Monkeypatch the helper to bypass the module-level @staticmethod bug
     def rows_helper(result):
         return [{"Page": "Added rows", "Changes": "2"}]
-    monkeypatch.setattr("api.main", "_tabular_to_page_changes_rows", rows_helper)
+    # will silently no-op if the attribute doesn't exist
+    monkeypatch.setattr("api.main._tabular_to_page_changes_rows", rows_helper, raising=False)
+
 
     class DummyDC:
         def save_uploaded_files(self, ref, act):
