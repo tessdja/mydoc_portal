@@ -20,7 +20,9 @@ packages = [
     "pypdf",
     "python-pptx",
     "pandas",
-    "openpyxl"
+    "openpyxl",
+    "httpx", 
+    "fastapi[all]"
 
 ]
 for pkg in packages:
