@@ -1,7 +1,7 @@
 import sys
 import os
 from operator import itemgetter
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
@@ -170,3 +170,44 @@ class ConversationalRAG:
         except Exception as e:
             log.error("Failed to build LCEL chain", error=str(e), session_id=self.session_id)
             raise DocumentPortalException("Failed to build LCEL chain", sys)
+        
+    def invoke_with_contexts(
+        self,
+        question: str,
+        chat_history: list[str] | None = None,
+        top_k: int | None = None,
+    ) -> Tuple[str, List[str]]:
+        """
+        Returns the model's answer *and* the retrieved context chunks as plain strings.
+        DeepEval uses these contexts for Faithfulness/Hallucination/Context metrics.
+        """
+        k = top_k or getattr(self, "k", 3)
+
+        # 1) Get the top-k documents from your retriever.
+        #    Works for LangChain's VectorStoreRetriever and similar.
+        if not hasattr(self, "retriever") or self.retriever is None:
+            raise RuntimeError(
+                "Retriever not set. Call load_retriever_from_faiss(...) before invoke_with_contexts()."
+            )
+
+        docs = self.retriever.get_relevant_documents(question)  # type: ignore[attr-defined]
+        if k and len(docs) > k:
+            docs = docs[:k]
+
+        # 2) Normalize to plain text
+        def _doc_to_text(d) -> str:
+            if hasattr(d, "page_content"):
+                return d.page_content
+            if isinstance(d, dict) and "text" in d:
+                return str(d["text"])
+            return str(d)
+
+        contexts = [_doc_to_text(d) for d in docs]
+
+        # 3) Produce the normal answer using your existing path
+        answer = self.invoke(question, chat_history=chat_history or [])
+
+        # (optional) Keep last contexts for debugging
+        setattr(self, "last_contexts", contexts)
+
+        return answer, contexts    

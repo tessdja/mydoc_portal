@@ -1,0 +1,10 @@
+[
+    {
+    "question": "What is your refund policy?",
+    "ideal": "We offer a 30-day full refund at no extra cost.",
+    "contexts": [
+        "All customers are eligible for a 30 day full refund at no extra costs.",
+        "Returns are processed within 5 business days."
+    ]
+    }
+]

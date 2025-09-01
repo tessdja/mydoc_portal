@@ -88,7 +88,6 @@ async def analyze_document(file: UploadFile = File(...)) -> Any:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
 
 # ---------- COMPARE ----------
-@staticmethod
 def _tabular_to_page_changes_rows(result: dict) -> list[dict[str, str]]:
     """Format tabular diff into your current UI's 'Page'/'Changes' rows."""
     rows = []
@@ -132,9 +131,9 @@ async def compare_documents(reference: UploadFile = File(...), actual: UploadFil
             # Keep existing UI working: provide 'rows' (Page/Changes) AND the full structured diff.
             page_rows = _tabular_to_page_changes_rows(combined)
             log.info("Tabular diff completed",
-                     key_columns=combined.get("key_columns"),
-                     cols=len(combined.get("columns_compared", [])),
-                     session_id=dc.session_id)
+                        key_columns=combined.get("key_columns"),
+                        cols=len(combined.get("columns_compared", [])),
+                        session_id=dc.session_id)
             return {
                 "rows": page_rows,          # your current table will render this
                 "tabular": combined,        # full structured diff for richer UIs later
@@ -199,6 +198,7 @@ async def chat_query(
     session_id: Optional[str] = Form(None),
     use_session_dirs: bool = Form(True),
     k: int = Form(5),
+    return_contexts: bool = Form(False), 
     mode: str = Form("auto"),            # NEW: 'auto' | 'db' | 'docs' | 'hybrid'
     schema: str = Form("docportal"),     # NEW: DB schema name
     refresh_schema: bool = Form(False),  # NEW: force catalog refresh
@@ -206,73 +206,86 @@ async def chat_query(
     """
     Returns a uniform envelope:
     { "mode": "db|docs|hybrid",
-      "answer": str,
-      "sql": str|None,
-      "rows": list|None,
-      "sources": list|None }
+        "answer": str,
+        "sql": str|None,
+        "rows": list|None,
+        "sources": list|None }
     """
     try:
-      # pick intent
-      intent = mode if mode in {"db", "docs", "hybrid"} else classify_intent(question)
+        # pick intent
+        intent = mode if mode in {"db", "docs", "hybrid"} else classify_intent(question)
 
-      # ---- DOCS path (RAG) ----
-      doc_answer, sources = None, None
-      if intent in ("docs", "hybrid"):
-          if use_session_dirs and not session_id:
-              raise HTTPException(status_code=400, detail="session_id is required when use_session_dirs=True")
-          index_dir = os.path.join(FAISS_BASE, session_id) if use_session_dirs else FAISS_BASE
-          if not os.path.isdir(index_dir):
-              raise HTTPException(status_code=404, detail=f"FAISS index not found at: {index_dir}")
-          rag = ConversationalRAG(session_id=session_id)
-          rag.load_retriever_from_faiss(index_dir, k=k, index_name=FAISS_INDEX_NAME)
-          doc_answer = rag.invoke(question, chat_history=[])
-          sources = []  # add your snippet strings here if your pipeline exposes them
+        # ---- DOCS path (RAG) ----
+        doc_answer, sources = None, None
+        if intent in ("docs", "hybrid"):
+            if use_session_dirs and not session_id:
+                raise HTTPException(status_code=400, detail="session_id is required when use_session_dirs=True")
+            index_dir = os.path.join(FAISS_BASE, session_id) if use_session_dirs else FAISS_BASE
+            if not os.path.isdir(index_dir):
+                raise HTTPException(status_code=404, detail=f"FAISS index not found at: {index_dir}")
+            rag = ConversationalRAG(session_id=session_id)
+            rag.load_retriever_from_faiss(index_dir, k=k, index_name=FAISS_INDEX_NAME)
 
-      # ---- DB path (NL→SQL) ----
-      sql, rows = None, None
-      if intent in ("db", "hybrid"):
-          cat = build_catalog(schema=schema, table_whitelist=None,
-                              ttl_seconds=0 if refresh_schema else 3600)
-          cat_text = catalog_as_prompt_text(cat)
+            if return_contexts:
+                doc_answer, sources = rag.invoke_with_contexts(question, chat_history=[], top_k=k)
+            else:
+                doc_answer, sources = rag.invoke(question, chat_history=[]), []
 
-          examples = [
-              ("Count rows in v2", "SELECT COUNT(*) AS n FROM docportal.stroke_patients_v2"),
-              ("work_type counts for Rural",
-               "SELECT work_type, COUNT(*) AS cnt FROM docportal.stroke_patients_v2 "
-               "WHERE residence_type='Rural' GROUP BY work_type ORDER BY cnt DESC"),
-              ("Ids that changed work_type from Private to Self-employed between v1 and v2",
-               "SELECT v1.id FROM docportal.stroke_patients_v1 v1 "
-               "JOIN docportal.stroke_patients_v2 v2 USING (id) "
-               "WHERE v1.work_type='Private' AND v2.work_type='Self-employed'"),
-          ]
+        # ---- DB path (NL→SQL) ----
+        sql, rows = None, None
+        if intent in ("db", "hybrid"):
+            cat = build_catalog(schema=schema, table_whitelist=None,
+                                ttl_seconds=0 if refresh_schema else 3600)
+            cat_text = catalog_as_prompt_text(cat)
+            examples = [
+                ("Count rows in v2", "SELECT COUNT(*) AS n FROM docportal.stroke_patients_v2"),
+                ("work_type counts for Rural",
+                "SELECT work_type, COUNT(*) AS cnt FROM docportal.stroke_patients_v2 "
+                "WHERE residence_type='Rural' GROUP BY work_type ORDER BY cnt DESC"),
+                ("Ids that changed work_type from Private to Self-employed between v1 and v2",
+                "SELECT v1.id FROM docportal.stroke_patients_v1 v1 "
+                "JOIN docportal.stroke_patients_v2 v2 USING (id) "
+                "WHERE v1.work_type='Private' AND v2.work_type='Self-employed'"),
+            ]
+            sql = generate_and_validate(
+                question, schema_text=cat_text, examples=examples,
+                max_rows=int(os.getenv("MYSQL_MAX_ROWS", "1000")),
+            )
+            rows = safe_select(sql)
 
-          sql = generate_and_validate(
-              question,
-              schema_text=cat_text,
-              examples=examples,
-              max_rows=int(os.getenv("MYSQL_MAX_ROWS", "1000")),
-          )
-          rows = safe_select(sql)
+        # ---- compose response ----
+        if intent == "db":
+            return {"mode": "db", "answer": f"Query executed for: {question}", 
+                    "sql": sql, "rows": rows, "sources": []}
 
-      # ---- compose response ----
-      if intent == "db":
-          return {"mode": "db", "answer": f"Query executed for: {question}", "sql": sql, "rows": rows, "sources": []}
+        # ---- compose response ----
+        if intent == "db":
+            return {"mode": "db", "answer": f"Query executed for: {question}", 
+                    "sql": sql, "rows": rows, "sources": []}
 
-      if intent == "docs":
-          return {"mode": "docs", "answer": doc_answer, "sql": None, "rows": None, "sources": sources}
+        if intent == "docs":
+            payload = {"mode": "docs", "answer": doc_answer, 
+                        "sql": None, "rows": None}
+            if return_contexts:
+                payload["sources"] = sources
+            return payload
 
-      # hybrid fusion using a tiny prompt
-      llm = ModelLoader().load_llm()
-      prompt = PROMPT_REGISTRY["hybrid_answer"]
-      messages = prompt.format_messages(
-          question=question,
-          db_rows_json = json.dumps(rows[:50] if rows else [], ensure_ascii=False, default=str),
-          snippets="\n\n".join(sources or []),
-      )
-      fusion = llm.invoke(messages)
-      hybrid_answer = getattr(fusion, "content", fusion)
+        # hybrid fusion
+        llm = ModelLoader().load_llm()
+        prompt = PROMPT_REGISTRY["hybrid_answer"]
+        messages = prompt.format_messages(
+            question=question,
+            db_rows_json=json.dumps(rows[:50] if rows else [], ensure_ascii=False, default=str),
+            snippets="\n\n".join(sources or []),
+        )
+        fusion = llm.invoke(messages)
+        hybrid_answer = getattr(fusion, "content", fusion)
 
-      return {"mode": "hybrid", "answer": hybrid_answer, "sql": sql, "rows": rows, "sources": sources}
+        payload = {"mode": "hybrid", "answer": hybrid_answer, "sql": sql, "rows": rows}
+        if return_contexts:
+            payload["sources"] = sources
+        return payload
+
 
     except HTTPException:
         raise
@@ -310,12 +323,12 @@ async def db_nl(payload: dict = Body(...)):
         examples = [
             ("Count rows in v2", "SELECT COUNT(*) AS n FROM docportal.stroke_patients_v2"),
             ("work_type counts for Rural",
-             "SELECT work_type, COUNT(*) AS cnt FROM docportal.stroke_patients_v2 "
-             "WHERE residence_type='Rural' GROUP BY work_type ORDER BY cnt DESC"),
+                "SELECT work_type, COUNT(*) AS cnt FROM docportal.stroke_patients_v2 "
+                "WHERE residence_type='Rural' GROUP BY work_type ORDER BY cnt DESC"),
             ("Ids that changed work_type from Private to Self-employed between v1 and v2",
-             "SELECT v1.id FROM docportal.stroke_patients_v1 v1 "
-             "JOIN docportal.stroke_patients_v2 v2 USING (id) "
-             "WHERE v1.work_type='Private' AND v2.work_type='Self-employed'"),
+                "SELECT v1.id FROM docportal.stroke_patients_v1 v1 "
+                "JOIN docportal.stroke_patients_v2 v2 USING (id) "
+                "WHERE v1.work_type='Private' AND v2.work_type='Self-employed'"),
         ]
 
         # 3) generate + validate
