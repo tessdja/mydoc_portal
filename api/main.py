@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from utils.document_ops import FastAPIFileAdapter
+from utils.db import safe_select
 
 from src.document_ingestion.data_ingestion import (
     DocHandler,
@@ -215,6 +216,16 @@ async def chat_query(
     except Exception as e:
         log.exception("Chat query failed")
         raise HTTPException(status_code=500, detail=f"Query failed: {e}")
+    
+# ---TEST MYSQL CONNECTION ----------
+@app.post("/db/query")
+async def db_query(payload: dict):
+    try:
+        rows = safe_select(payload["sql"], tuple(payload.get("params", [])))
+        return {"rows": rows}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 # command for executing the fast api
 # uvicorn api.main:app --port 8080 --reload    
