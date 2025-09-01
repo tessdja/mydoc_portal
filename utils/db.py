@@ -1,35 +1,36 @@
-# db.py
-import os, re, mysql.connector
-from dotenv import load_dotenv
-from mysql.connector import connect
-from logger import GLOBAL_LOGGER as log
+# utils/db.py
+import os
+import re
+from typing import Any, List, Dict
 
-# Load .env for local runs (do this here so /db/query has values)
-if os.getenv("ENV", "local").lower() != "production":
-    load_dotenv()
-    log.info("DB: .env loaded")
-    # print(os.getenv("MYSQL_USER"))
-    # print(os.getenv("MYSQL_PASSWORD"))
+def _get_mysql_connector():
+    try:
+        import mysql.connector  # lazy import
+        return mysql.connector
+    except ImportError as e:
+        raise RuntimeError(
+            "mysql-connector-python is required for DB features. "
+            "Install it with: pip install mysql-connector-python"
+        ) from e
 
-_BAD = re.compile(r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|RENAME|GRANT|REVOKE)\b", re.I)
-
-def get_conn():
-    return connect(
-        host=os.getenv("MYSQL_HOST","localhost"),
-        port=int(os.getenv("MYSQL_PORT","3306")),
-        database=os.getenv("MYSQL_DB","docportal"),
+def safe_select(sql: str, params: dict | None = None) -> List[Dict[str, Any]]:
+    mysql = _get_mysql_connector()
+    conn = mysql.connect(
+        host=os.getenv("MYSQL_HOST", "localhost"),
         user=os.getenv("MYSQL_USER"),
         password=os.getenv("MYSQL_PASSWORD"),
-        autocommit=True,
-        connection_timeout=10,
+        database=os.getenv("MYSQL_DATABASE"),
+        port=int(os.getenv("MYSQL_PORT", "3306")),
     )
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(sql, params or {})
+        rows = cur.fetchall()
+        return rows
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        conn.close()
 
-def safe_select(sql: str, params: tuple | None = None, max_rows: int = 1000):
-    s = sql.strip().rstrip(";")
-    if _BAD.search(s) or not s.lower().startswith("select"):
-        raise ValueError("Only SELECT queries are allowed.")
-    if " limit " not in s.lower():
-        s = f"{s} LIMIT {max_rows}"
-    with get_conn() as cn, cn.cursor(dictionary=True) as cur:
-        cur.execute(s, params or ())
-        return cur.fetchall()
