@@ -134,6 +134,25 @@
           <div class="field">
             <label for="chat-q">Your Question</label>
             <input id="chat-q" type="text" placeholder="Ask a question about your documents…" />
+          <!-- NL→SQL controls -->
+          <div class="grid-3">
+            <div class="field">
+              <label for="chat-mode">Mode</label>
+              <select id="chat-mode">
+                <option value="auto" selected>Auto (detect)</option>
+                <option value="db">Data (SQL)</option>
+                <option value="docs">Docs (RAG)</option>
+                <option value="hybrid">Hybrid (Both)</option>
+              </select>
+            </div>
+            <div class="field toggle-row">
+              <label>Refresh DB schema</label>
+              <label class="switch">
+                <input id="chat-refresh-schema" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div> 
           </div>
           <div class="actions">
             <button id="btn-ask" class="btn">Send</button>
@@ -143,6 +162,17 @@
         <div id="chat-meta" class="muted small"></div>
 
         <div id="chat-ans" class="result-block">
+        <!-- Data result (shown only when rows are returned) -->
+        <div id="chat-data" class="result-block" style="display:none;">
+          <h3>Data Result</h3>
+          <pre class="code" id="chat-sql" style="display:none;"></pre>
+          <div class="table-wrap" id="chat-table-wrap" style="display:none;">
+            <table id="chat-table">
+              <thead><tr id="chat-th"></tr></thead>
+              <tbody id="chat-tb"></tbody>
+            </table>
+          </div>
+        </div>
           <h3>Answer</h3>
           <div class="answer" id="chat-answer">No answer yet.</div>
         </div>
@@ -277,10 +307,31 @@
     const useSess  = document.getElementById("chat-sessionized").checked;
     const k        = +document.getElementById("chat-k").value || 5;
 
+    // NEW: read the NL→SQL controls
+    const mode     = document.getElementById("chat-mode").value;
+    const refresh  = document.getElementById("chat-refresh-schema").checked;
+
+    // NEW: data-result elements
+    const dataBlock = document.getElementById("chat-data");
+    const sqlBlock  = document.getElementById("chat-sql");
+    const tableWrap = document.getElementById("chat-table-wrap");
+    const th = document.getElementById("chat-th");
+    const tb = document.getElementById("chat-tb");
+
     if (!q) { ans.textContent = "Please enter a question."; return; }
     if (useSess && !currentSession) {
       ans.textContent = "Build the index first (session-based mode is ON).";
       return;
+    }
+
+    // reset data section (hidden by default)
+    if (dataBlock) {
+      dataBlock.style.display = "none";
+      sqlBlock.style.display = "none";
+      tableWrap.style.display = "none";
+      sqlBlock.textContent = "";
+      th.innerHTML = "";
+      tb.innerHTML = "";
     }
 
     try {
@@ -290,6 +341,12 @@
       fd.append("question", q);
       fd.append("use_session_dirs", useSess ? "true" : "false");
       fd.append("k", String(k));
+
+      // NEW: send mode + schema + refresh flag
+      fd.append("mode", mode);
+      fd.append("schema", "docportal");                 // adjust if you use a different schema
+      fd.append("refresh_schema", refresh ? "true" : "false");
+
       if (useSess && currentSession) fd.append("session_id", currentSession);
 
       const res = await fetch(`${API_BASE}/chat/query`, { method: "POST", body: fd });
@@ -297,8 +354,33 @@
         const err = await res.json().catch(()=>({detail:res.statusText}));
         throw new Error(err.detail || `HTTP ${res.status}`);
       }
-      const json = await res.json(); // { answer, ... }
-      ans.textContent = json.answer || "No answer.";
+
+      // Handle both the new envelope and old text-only response
+      let json;
+      try { json = await res.json(); }
+      catch {
+        const text = await res.text();
+        json = { answer: text };
+      }
+
+      ans.textContent = json.answer ?? "No answer.";
+
+      // NEW: render SQL + table if provided
+      if (json.rows && Array.isArray(json.rows) && json.rows.length) {
+        dataBlock.style.display = "block";
+
+        if (json.sql) {
+          sqlBlock.textContent = json.sql;
+          sqlBlock.style.display = "block";
+        }
+
+        const keys = Object.keys(json.rows[0]);
+        th.innerHTML = keys.map(k => `<th>${k}</th>`).join("");
+        tb.innerHTML = json.rows.map(r =>
+          `<tr>${keys.map(k => `<td>${r[k] ?? ""}</td>`).join("")}</tr>`
+        ).join("");
+        tableWrap.style.display = "block";
+      }
     } catch (e) {
       ans.textContent = "Query failed: " + (e.message || e);
     }
