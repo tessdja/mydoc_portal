@@ -65,7 +65,17 @@ nl2sql_prompt = ChatPromptTemplate.from_messages([
     ("human", "Q: {question}\nA:")
 ])
 
-
+hybrid_answer_prompt = ChatPromptTemplate.from_messages([
+    ("system",
+     "You are a concise analyst. Combine the database result with the document snippets.\n"
+     "Do not invent numbers. If a number is not present in 'Database rows', do not state it.\n"
+     "If citing snippets, mention their title/section when obvious.\n"),
+    ("human",
+     "User question:\n{question}\n\n"
+     "Database rows (JSON):\n{db_rows}\n\n"
+     "Document snippets:\n{snippets}\n\n"
+     "Write a short answer (bullets allowed). Finish with a 'Next steps' line if applicable.")
+])
 
 # Central dictionary to register prompts
 PROMPT_REGISTRY = {
@@ -74,4 +84,5 @@ PROMPT_REGISTRY = {
     "contextualize_question": contextualize_question_prompt,
     "context_qa": context_qa_prompt,
     "nl2sql": nl2sql_prompt, 
+    "hybrid_answer": hybrid_answer_prompt, 
 }
