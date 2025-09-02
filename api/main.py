@@ -1,8 +1,11 @@
 import os
 import json
+import secrets  # for default session secret
+
+from starlette.middleware.sessions import SessionMiddleware
 from typing import List, Optional, Any, Dict
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Body
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Body, Depends
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -48,12 +51,67 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Session cookies for simple login
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET", secrets.token_urlsafe(32)),
+    same_site="lax",
+    https_only=False,  # set True if you are strictly on HTTPS
+)
+
+def get_current_user(request: Request) -> str:
+    user = request.session.get("user")
+    if not user:
+        # For API routes we prefer a 401 so the frontend can react
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_form(request: Request):
+    # capture ?next=... if provided
+    next_target = request.query_params.get("next", "/")
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "error": None, "next": next_target}
+    )
+
+@app.post("/login", response_class=HTMLResponse)
+async def login(request: Request,
+                username: str = Form(...),
+                password: str = Form(...),
+                next: str | None = Form(default="/")):
+    valid_user = os.getenv("APP_USER", "admin")
+    valid_pass = os.getenv("APP_PASS", "changeme")
+
+    if username == valid_user and password == valid_pass:
+        request.session["user"] = username
+        return RedirectResponse(next or "/", status_code=303)
+
+    # Bad creds – re-render form with an error
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "error": "Invalid username or password."},
+        status_code=401
+    )
+
+@app.post("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse("/login", status_code=303)
+
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_ui(request: Request):
+    if not request.session.get("user"):
+        return RedirectResponse("/login", status_code=302)
     log.info("Serving UI homepage.")
-    resp = templates.TemplateResponse("index.html", {"request": request})
+    resp = templates.TemplateResponse("index.html", {
+        "request": request,
+        "user": request.session.get("user")
+    })
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
 
 @app.get("/health")
 def health() -> Dict[str, str]:
@@ -62,7 +120,8 @@ def health() -> Dict[str, str]:
 
 # ---------- ANALYZE ----------
 @app.post("/analyze")
-async def analyze_document(file: UploadFile = File(...)) -> Any:
+async def analyze_document(file: UploadFile = File(...),
+                            user: str = Depends(get_current_user)) -> Any:
     try:
         log.info(f"Received file for analysis: {file.filename}")
         dh = DocHandler()
@@ -115,7 +174,8 @@ def _tabular_to_page_changes_rows(result: dict) -> list[dict[str, str]]:
 
 
 @app.post("/compare")
-async def compare_documents(reference: UploadFile = File(...), actual: UploadFile = File(...)) -> Any:
+async def compare_documents(reference: UploadFile = File(...), actual: UploadFile = File(...),
+                            user: str = Depends(get_current_user)) -> Any:
     try:
         log.info(f"Comparing files: {reference.filename} vs {actual.filename}")
 
@@ -161,6 +221,7 @@ async def compare_documents(reference: UploadFile = File(...), actual: UploadFil
 @app.post("/chat/index")
 async def chat_build_index(
     files: List[UploadFile] = File(...),
+    user: str = Depends(get_current_user),
     session_id: Optional[str] = Form(None),
     use_session_dirs: bool = Form(True),
     chunk_size: int = Form(1000),
@@ -195,6 +256,7 @@ async def chat_build_index(
 @app.post("/chat/query")
 async def chat_query(
     question: str = Form(...),
+    user: str = Depends(get_current_user),
     session_id: Optional[str] = Form(None),
     use_session_dirs: bool = Form(True),
     k: int = Form(5),

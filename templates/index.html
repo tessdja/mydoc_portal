@@ -21,6 +21,14 @@
       <button class="tab-btn" data-tab="compare">Document Compare</button>
       <button class="tab-btn" data-tab="chat">Doc Chat</button>
     </nav>
+    {% if user %}
+    <div style="margin-left:auto; display:flex; align-items:center; gap:.75rem;">
+      <span class="muted small">Signed in as <strong>{{ user }}</strong></span>
+      <form method="post" action="/logout">
+        <button class="btn" type="submit">Logout</button>
+      </form>
+    </div>
+    {% endif %}
   </header>
 
   <main class="container">
@@ -189,6 +197,19 @@
   // Base URL for API (same origin when opened via FastAPI)
   const API_BASE = "";
 
+  // Wrap fetch so we auto-redirect to /login on 401
+  async function authFetch(input, init) {
+    const res = await fetch(input, init);
+    if (res.status === 401) {
+      const here = window.location.pathname + window.location.search + window.location.hash;
+      // send user to login, then back to where they were
+      window.location.href = `/login?next=${encodeURIComponent(here)}`;
+      // return a never-resolving promise so caller code stops running
+      return new Promise(() => {});
+    }
+    return res;
+  }
+
   // Tab switching (unchanged)
   const tabs = document.querySelectorAll(".tab-btn");
   const panels = document.querySelectorAll(".tab-panel");
@@ -212,7 +233,7 @@
       const fd = new FormData();
       fd.append("file", file); // <-- must be 'file' to match FastAPI
 
-      const res = await fetch(`${API_BASE}/analyze`, { method: "POST", body: fd });
+      const res = await authFetch(`${API_BASE}/analyze`, { method: "POST", body: fd });
       if (!res.ok) {
         const err = await res.json().catch(()=>({detail:res.statusText}));
         throw new Error(err.detail || `HTTP ${res.status}`);
@@ -242,7 +263,7 @@
       fd.append("reference", ref); // <-- must be 'reference'
       fd.append("actual", act);    // <-- must be 'actual'
 
-      const res = await fetch(`${API_BASE}/compare`, { method: "POST", body: fd });
+      const res = await authFetch(`${API_BASE}/compare`, { method: "POST", body: fd });
       if (!res.ok) {
         const err = await res.json().catch(()=>({detail:res.statusText}));
         throw new Error(err.detail || `HTTP ${res.status}`);
@@ -288,7 +309,7 @@
       fd.append("chunk_overlap", String(overlap));
       fd.append("k", String(k));
 
-      const res = await fetch(`${API_BASE}/chat/index`, { method: "POST", body: fd });
+      const res = await authFetch(`${API_BASE}/chat/index`, { method: "POST", body: fd });
       if (!res.ok) {
         const err = await res.json().catch(()=>({detail:res.statusText}));
         throw new Error(err.detail || `HTTP ${res.status}`);
@@ -349,7 +370,7 @@
 
       if (useSess && currentSession) fd.append("session_id", currentSession);
 
-      const res = await fetch(`${API_BASE}/chat/query`, { method: "POST", body: fd });
+      const res = await authFetch(`${API_BASE}/chat/query`, { method: "POST", body: fd });
       if (!res.ok) {
         const err = await res.json().catch(()=>({detail:res.statusText}));
         throw new Error(err.detail || `HTTP ${res.status}`);

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Sign in • Document Portal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="/static/style.css" rel="stylesheet" />
+<style>
+  /* minimal tweaks; your style.css already has cards/buttons */
+    .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 2rem; }
+    .login-card { width: 100%; max-width: 420px; }
+    .error { color: #ff6b6b; margin-top: .5rem; font-size: .9rem; }
+    .brand-top { display:flex; gap:.5rem; align-items:center; justify-content:center; margin-bottom:1rem; }
+    .brand-top h1 { margin:0; }
+
+  /* 1) Unified input styling */
+    .login-input{
+    /* Make sure the field is interactive and sits above any overlay */
+    position: relative;
+    z-index: 10;
+    pointer-events: auto;
+
+    /* Size & spacing */
+    box-sizing: border-box;
+    width: 100%;
+    height: 36px;
+    line-height: 36px;
+    padding: 0 .75rem;
+
+    /* Visuals: same for both username & password */
+    background: #fff;
+    color: #111;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;   /* set 9999px if you want both to be pill-shaped */
+    outline: none;
+    box-shadow: none;
+    }
+
+    .login-input:focus{
+    border-color: #60a5fa;              /* blue-400 */
+    box-shadow: 0 0 0 3px rgba(96,165,250,.35);
+    }
+
+  /* 2) Reset any global styles targeting input[type="text"] only */
+    .login-card input[type="text"],
+    .login-card input[type="password"]{
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    pointer-events: auto !important;
+    background: #fff !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 6px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    padding: 0 .75rem !important;
+    color: #111 !important;
+    caret-color: #111;
+    }
+    /* Chrome/Edge autofill can override text color — pin it to black */
+    .login-card input:-webkit-autofill,
+    .login-card input:-webkit-autofill:hover,
+    .login-card input:-webkit-autofill:focus{
+        -webkit-text-fill-color: #111 !important;
+        caret-color: #111;
+  /* keep your background white and avoid the yellow autofill flash */
+        transition: background-color 50000s ease-in-out 0s;
+}
+
+/* (optional) keep placeholders a lighter gray so you can tell them apart */
+    .login-card input::placeholder{
+        color: #9ca3af;
+        opacity: 1;
+    }
+
+</style>
+
+</head>
+<body>
+    <div class="login-wrap">
+    <div class="card login-card">
+        <div class="brand-top">
+        <span class="logo">📚</span>
+        <h1>Document Portal</h1>
+        </div>
+        <h2 class="center">Sign in</h2>
+        <form method="post" action="/login" class="form-grid" style="margin-top:1rem">
+        <div class="field">
+            <label for="username">Username</label>
+            <input id="username" name="username" type="text" required autocomplete="username" class="login-input" />
+        </div>
+        <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" required autocomplete="current-password" class="login-input" />
+        </div>
+        <input type="hidden" name="next" value="{{ next or '/' }}" />
+        <div class="actions">
+            <button class="btn primary" type="submit">Sign in</button>
+        </div>
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+        </form>
+        <p class="muted small center" style="margin-top:1rem;">Use the credentials configured in <code>APP_USER</code>/<code>APP_PASS</code>.</p>
+    </div>
+    </div>
+</body>
+</html>

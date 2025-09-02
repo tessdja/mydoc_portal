@@ -8,7 +8,7 @@ CACHE_DIR = os.path.join(os.getcwd(), "data", "schema_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 def build_catalog(schema: str, table_whitelist: Optional[List[str]] = None,
-                  sample_rows: int = 50, ttl_seconds: int = 3600) -> Dict:
+                    sample_rows: int = 50, ttl_seconds: int = 3600) -> Dict:
     """Return a dict catalog; cached on disk."""
     cache_key = f"{schema}__{','.join(sorted(table_whitelist or [])) or 'all'}.json"
     cache_path = os.path.join(CACHE_DIR, cache_key)
@@ -22,10 +22,10 @@ def build_catalog(schema: str, table_whitelist: Optional[List[str]] = None,
 
         # 1) tables
         cur.execute("""
-          SELECT TABLE_NAME
-          FROM INFORMATION_SCHEMA.TABLES
-          WHERE TABLE_SCHEMA = %s
-          ORDER BY TABLE_NAME
+            SELECT TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = %s
+            ORDER BY TABLE_NAME
         """, (schema,))
         tables = [r["TABLE_NAME"] for r in cur.fetchall()]
         if table_whitelist:
@@ -35,10 +35,10 @@ def build_catalog(schema: str, table_whitelist: Optional[List[str]] = None,
 
         # 2) columns + types
         cur.execute("""
-          SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, COLUMN_KEY, IS_NULLABLE
-          FROM INFORMATION_SCHEMA.COLUMNS
-          WHERE TABLE_SCHEMA = %s
-          ORDER BY TABLE_NAME, ORDINAL_POSITION
+            SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, COLUMN_KEY, IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = %s
+            ORDER BY TABLE_NAME, ORDINAL_POSITION
         """, (schema,))
         for row in cur.fetchall():
             t = row["TABLE_NAME"]
